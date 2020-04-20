@@ -42,3 +42,8 @@ would search for any users starting with the letter 'm'
 [] add support for different username/password params
 
 [] importing of Burpsuite captures
+
+## Inspiration
+This code was originally developed to help find passwords on [hackthebox.eu](https://www.hackthebox.eu/) mango server (retired).  It was initially based on code found in [PayloadsAllTheThings-NoSQL-Injection](https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/NoSQL%20Injection)
+
+Then feature creep took over and it became a parallel injection finding program for both username and password with a bit of fun with curses thrown in.  With more feature creep to come in the future, `hopefully`.
