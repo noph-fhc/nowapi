@@ -35,8 +35,6 @@ example: ./nowapi.py -u m http://server.example.com/login.htm
 would search for any users starting with the letter 'm'
 ```
 ## Todo
-[] actually support `iterate` as the help claims it already does
-
 [] add support for json payloads
 
 [] add support for different username/password params
@@ -47,3 +45,14 @@ would search for any users starting with the letter 'm'
 This code was originally developed to help find passwords on [hackthebox.eu](https://www.hackthebox.eu/) mango server (retired).  It was initially based on code found in [PayloadsAllTheThings-NoSQL-Injection](https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/NoSQL%20Injection)
 
 Then feature creep took over and it became a parallel injection finding program for both username and password with a bit of fun with curses thrown in.  With more feature creep to come in the future, `hopefully`.
+
+
+## Notes
+Username iteration is kind of slow, you can limit the number of letters in the username to look for with the --ul.
+
+example:
+```
+./nowapi.py --ul 2 --iterate http://server.example.com/
+```
+would search for just the first two letters of any usernames
+

